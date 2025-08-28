@@ -28,10 +28,23 @@ class CosfimHandler:
         self.is_new_instance = None
         self.file_data = None
         self.opt_name_map = {
-            "낙동강": "NDMF",
-            "영산강": "YDM",
-            "영산강": "YDM",
+            "낙동강": {
+                "하류":"NAMF", "안동댐":"ADMF", "임하댐":"IHMF", "합천댐":"HCMF", "남강댐":"NKMF",  "밀양댐":"MYMF", 
+                "운문댐":"UMMF", "영천댐":"YCMF", "영주댐":"YJMF", "성덕댐":"SDMF", "군위댐":"GWMF",  "부항댐":"BHMF",
+                "보현댐":"BOMF",  "안계댐":"AKMF", "감포댐":"GPMF", "창녕함안보":"HAMF", "회천":"HOMF"
+                },
+            "태화강": {
+                "하류":"THMF", "대곡댐":"DKMF", "사연댐":"SAMF", "대안댐":"DAMF", "선암댐":"SNMF", "형산강":"HRMF"
+                },
+            "서낙동": {
+                "하류":"WNMF", "창녕함안보":"HAMF"
+                },
+            "거제권": {
+                "하류":"GJMF",  "연초댐":"YNMF", "구천댐":"KCMF"
+                },
         }
+
+
 
         # UI 요소 초기화
         self.app = None
@@ -45,8 +58,8 @@ class CosfimHandler:
 
     def arg_parser(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--water_system_name", type=str, default="낙동강")
-        parser.add_argument("--dam_name", type=str, default="안동댐")
+        parser.add_argument("--water_system_name", type=str, default="태화강")
+        parser.add_argument("--dam_name", type=str, default="대곡댐")
         parser.add_argument("--method", type=str, default="latest")
         parser.add_argument("--id", type=str, default="20052970")
         parser.add_argument("--pw", type=str, default="20052970")
@@ -175,29 +188,36 @@ class CosfimHandler:
 
     
     # 옵션 파일 처리
-    def _load_opt_file(self): 
-        # 저장된 파일 읽기 -> 매핑으로 수정 예정/ 매핑하면 필요 없을수도? 
-        file_path = self.get_file_path()
-        logging.info(f"파일 경로 {file_path=}")
-        # 데이터 읽기
-        with open(file_path, "r") as f:
-            self.file_data = f.read()
-            logging.info(f"데이터 읽어옴 {self.file_data=}")
+    def _check_opt_file(self): 
+        opt_name = self.opt_name_map[self.args.water_system_name][self.args.dam_name]
+        opt_file_path = os.path.join(self.FILE_DIR, f"{opt_name}.OPT")
+        logging.info(f"옵션 파일 경로 {opt_file_path=}")
+
+        # 파일 없으면 생성 
+        if not os.path.exists(opt_file_path):
+            with open(opt_file_path, "w") as f:
+                pass
+            logging.info("OPT 파일 생성 완료")
+        else:
+            logging.info("OPT 파일 존재")
+        
+        return opt_file_path
 
     def _make_opt_data_from_args(self):
-        opt_data = "뭐가 들어올지 모르겠음"
-        logging.info(f"옵션 데이터 생성 {opt_data=}")
+        args = self.args
+        opt_data = "수정된 데이터"
+        logging.info("OPT 데이터 생성 완료")
         return opt_data
         
-    def _save_opt_file(self):
-        # with open(self.file_path, "w") as f:
-        #     f.write(self.file_data)
-        logging.info(f"옵션 데이터 저장 {self.file_data=}")
+    def _save_opt_file(self, opt_file_path, opt_data):
+        with open(opt_file_path, "w") as f:
+            f.write(opt_data)
+        logging.info("OPT 파일 저장 완료")
 
     def handle_opt_file(self):
-        self._load_opt_file() # 필요 없을수도 (매핑하면)
-        self._make_opt_data_from_args()
-        self._save_opt_file()
+        opt_data = self._make_opt_data_from_args()
+        opt_file_path = self._check_opt_file()
+        self._save_opt_file(opt_file_path, opt_data)
 
     
     # 데이터 처리
