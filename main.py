@@ -135,8 +135,10 @@ class CosfimHandler:
         try: 
             update_win = self.app.window(title_re="선택")
             update_win.wait("visible", timeout=1)
-            update_win.child_window(auto_id="6", control_type="Button").click_input()
-            logging.info("런치 - 업데이트 - 요청 발생, 업데이트 진행")
+            # update_win.child_window(auto_id="6", control_type="Button").click_input()
+            # =============시연을 위한 업데이트 무시(버전 고정)===================
+            update_win.child_window(auto_id="7", control_type="Button").click_input()
+            logging.info("런치 - 업데이트 - 요청 발생, 업데이트 무시")
         except:
             logging.info("런치 - 업데이트 - 요청 없음, 업데이트 생략")
             return
@@ -283,10 +285,10 @@ class CosfimHandler:
         time.sleep(self.WAIT_TIME_LONG_LONG) 
         print("옵션 불러오기 완료.")
         # ===아래는 OPT에서 안불러와지는 항목들===
-        self._select_time_interval()
-        self._select_time_picker_start_date()
-        if self.time_interval in ["10분", "30분", "60분"]:
-            self._select_time_picker_start_hr_min()
+        # self._select_time_interval()
+        # self._select_time_picker_start_date()
+        # if self.time_interval in ["10분", "30분", "60분"]:
+        #     self._select_time_picker_start_hr_min()
     
     # 옵션 파일 처리
     def _check_opt_file(self): 
@@ -344,6 +346,8 @@ class CosfimHandler:
         table_tap = graph_win.child_window(auto_id="tabControl", control_type="Tab").child_window(title="테이블", control_type="TabItem")
         table_tap.click_input()
         time.sleep(self.WAIT_TIME)
+        # =============시연을 위한 지연 추가===================
+        time.sleep(10)
 
         table_area = graph_win.child_window(title="테이블", auto_id="tabPage_Table", control_type="Pane")
         table_sheet = table_area.child_window(auto_id="sheet_DetailView", control_type="Pane")
