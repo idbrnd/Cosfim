@@ -1,0 +1,51 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "낙동강 합천댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",   
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "낙동강", 
+                    "--dam_name", "합천댐",
+                    "--opt_data", "sample_opt\\낙동강-합천댐-0805-30.OPT"
+                ]
+        },
+        {
+            "name": "거제권 구천댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "거제권", 
+                    "--dam_name", "구천댐",
+                    "--opt_data", "sample_opt\\거제권-구천댐-0203-0207-24.OPT"
+
+                ]
+        },
+        {
+            "name": "태화강 대암댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "태화강", 
+                    "--dam_name", "대암댐",
+                    "--opt_data", "sample_opt\\태화강-대암댐-0707-0712-60.OPT"
+                ]
+        }
+    ]
+}
+
+// http://drive.google.com/drive/folders/1NN70LsQGQ21NKf4gD8r40tnADtU7pE3c?usp=sharing

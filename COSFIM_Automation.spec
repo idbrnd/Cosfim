@@ -3,7 +3,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('requirements.txt', '.')]
 binaries = []
-hiddenimports = ['pywinauto', 'pywinauto.application', 'pywinauto.keyboard', 'pyperclip', 'pandas', 'pyautogui', 'win32api', 'requests', 'argparse', 'logging', 'time', 'os', 'sys', 'StringIO']
+hiddenimports = ['pywinauto', 'pywinauto.application', 'pywinauto.keyboard', 'pyperclip', 'pandas', 'requests', 'argparse', 'logging', 'time', 'os', 'sys', 'StringIO']
 tmp_ret = collect_all('pywinauto')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('pyautogui')

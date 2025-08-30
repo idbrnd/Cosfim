@@ -17,7 +17,7 @@ def build_exe():
         '--hidden-import=pywinauto.keyboard',
         '--hidden-import=pyperclip',
         '--hidden-import=pandas',
-        # '--hidden-import=requests',
+        '--hidden-import=requests',
         '--hidden-import=argparse',
         '--hidden-import=logging',
         '--hidden-import=time',

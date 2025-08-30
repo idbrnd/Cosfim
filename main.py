@@ -8,8 +8,9 @@ import pywinauto.keyboard as keyboard
 import pyperclip
 import pandas as pd
 from io import StringIO
-# import requests
+import requests
 import argparse
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -24,7 +25,14 @@ class CosfimHandler:
     def __init__(self):
         # 인자 및 데이터
         self.args = self.arg_parser()
-        self.file_path = self.get_file_path()
+        if self.args.opt_data is None:
+            return
+        self.opt_data = self.set_opt_data(self.args.opt_data)
+        print(f"======{self.opt_data=}")
+        print(f"======{self.args.opt_data=}")
+        self.start_time = self.get_start_time(self.opt_data)
+        self.time_interval = self.get_time_interval(self.opt_data, self.start_time_idx)
+        self.time_interval_list = self.get_time_interval_list(self.time_interval)
         self.is_new_instance = None
         self.file_data = None
         self.opt_name_map = {
@@ -34,7 +42,7 @@ class CosfimHandler:
                 "보현댐":"BOMF",  "안계댐":"AKMF", "감포댐":"GPMF", "창녕함안보":"HAMF", "회천":"HOMF"
                 },
             "태화강": {
-                "하류":"THMF", "대곡댐":"DKMF", "사연댐":"SAMF", "대안댐":"DAMF", "선암댐":"SNMF", "형산강":"HRMF"
+                "하류":"THMF", "대곡댐":"DKMF", "사연댐":"SAMF", "대암댐":"DAMF", "선암댐":"SNMF", "형산강":"HRMF"
                 },
             "서낙동": {
                 "하류":"WNMF", "창녕함안보":"HAMF"
@@ -42,7 +50,7 @@ class CosfimHandler:
             "거제권": {
                 "하류":"GJMF",  "연초댐":"YNMF", "구천댐":"KCMF"
                 },
-        }
+        } # C:\COSFIM\GUI\DAM.spec 파일에 추가적인 댐(구분) 정보/C:\COSFIM\GUI\수리모형\FLDWAV.spec에 강(수계) 정보 있음
 
 
 
@@ -60,28 +68,59 @@ class CosfimHandler:
         parser = argparse.ArgumentParser()
         parser.add_argument("--water_system_name", type=str, default="태화강")
         parser.add_argument("--dam_name", type=str, default="대곡댐")
-        parser.add_argument("--method", type=str, default="latest")
+        parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 이게 인자로 받기는 큰 사이즈 아닌가
         parser.add_argument("--id", type=str, default="20052970")
         parser.add_argument("--pw", type=str, default="20052970")
         return parser.parse_args()
 
+    def set_opt_data(self, opt_data):
+        if self.args.opt_data is not None and os.path.exists(self.args.opt_data):
+            with open(opt_data, "r") as f:
+                opt_data = f.read()
+            return opt_data
+        else:
+            return self.args.opt_data
 
-    def get_file_path(self):
-        """args 에 따라 파일 경로 반환/혹은 가장 최신 파일 반환"""
-        file_list = os.listdir(self.FILE_DIR)         #현재는 가장 최신 파일 반환중..
-        if len(file_list) == 0:
-            logging.error("파일 경로 없음")
-            return None
-        
-        file_list.sort(key=lambda x: os.path.getmtime(os.path.join(self.FILE_DIR, x)))
-        latest_file = file_list[-1]
-        file_path = os.path.join(self.FILE_DIR, latest_file)
-        return file_path
+    def get_start_time(self, opt_data):
+        # OPT data 파싱
+        cnt = 0
+        opt_data = opt_data.split("\n")
+        for idx, line in enumerate(opt_data):
+            if line[:2] in("19","20"):
+                cnt += 1
+                print(f"{cnt=}, {line=}")
+                if cnt == 2:
+                    ele = line.split(" ")
+                    year, month, day, hr, min = ele[-6:]
+                    print(f"{year=} {month=} {day=} {hr=} {min=}")
+                    self.start_time_idx = idx
+                    break
+        return year, month, day, hr, min
 
+    def get_time_interval(self, opt_data, start_time_idx):
+        # OPT data 파싱
+        opt_data = opt_data.split("\n")
+        ele = opt_data[start_time_idx+2].split(" ")
+        time_interval_int = ele[-1]
+        time_interval_map = {"10": "10분", "30": "30분", "60": "60분",  "1440": "24시간"}
+        time_interval = time_interval_map[time_interval_int]
+        print(f"{time_interval=}")
+        return time_interval
+
+
+    def get_time_interval_list(self, time_interval):
+        try: 
+            time_interval_map = {
+            "10분": ["00","10","20","30","40","50"],
+            "30분": ["00","30"],
+            "60분": ["00"]}
+            time_interval_list = time_interval_map[time_interval]
+        except KeyError:
+            time_interval_list = ["00"]
+        return time_interval_list
 
     # 엡 시작
     def _login(self):
-        # 로그인 (사용자로 부터 직업 입력 받거나 llM단에서 받야야 할 수도)
             self.login_win.set_focus()
             time.sleep(self.WAIT_TIME_LONG_LONG)
 
@@ -127,7 +166,7 @@ class CosfimHandler:
     def get_elements(self):
         self.main_win = self._main_win()
         self.tool_bar, self.save_btn, self.load_btn = self._tool_bar()   
-        self.water_system_box, self.dam_box = self._select_box()
+        self.water_system_box, self.dam_box, self.time_interval_box, self.time_picker_start = self._select_box()
 
     # 메인 화면 처리
     def _main_win(self):
@@ -159,9 +198,9 @@ class CosfimHandler:
     def _select_box(self):
         water_system_box = self.main_win.child_window(auto_id="comboBox_waterSystem", control_type="ComboBox")
         dam_box = self.main_win.child_window(auto_id="comboBox_DamName", control_type="ComboBox")
-        return water_system_box, dam_box
-
-
+        time_interval_box = self.main_win.child_window(auto_id="comboBox_TimeInterval", control_type="ComboBox")
+        time_picker_start = self.main_win.child_window(auto_id="timePicker_Current", control_type="Pane")
+        return water_system_box, dam_box, time_interval_box, time_picker_start
 
     # 항목 선택 
     def _select_water_system(self):
@@ -178,21 +217,82 @@ class CosfimHandler:
         self.dam_box.child_window(title=self.args.dam_name, control_type="ListItem").click_input()
         time.sleep(self.WAIT_TIME_LONG)
         logging.info(f"댐 선택 {self.args.dam_name=}")
-
     
+    # 분석 단위 선택 
+    def _select_time_interval(self):
+        time_interval = self.time_interval
+
+        self.time_interval_box.click_input()
+        time.sleep(self.WAIT_TIME)
+        self.time_interval_box.child_window(title=time_interval, control_type="ListItem").click_input()
+        time.sleep(self.WAIT_TIME_LONG)
+        logging.info(f"시간 간격 선택 {time_interval=}")
+
+    # 시작 시간 선택
+    def _select_time_picker_start_date(self):
+        year, month, day = self.start_time[:3]
+
+        time_picker_start_date= self.time_picker_start.child_window(auto_id="dateTimePicker", control_type="Pane")
+
+
+        # 날짜-연
+        pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+2, time_picker_start_date.rectangle().top+2))
+        time.sleep(self.WAIT_TIME_LONG)
+        pywinauto.keyboard.send_keys(year)
+        time.sleep(self.WAIT_TIME_LONG)
+    
+        # 날짜-월
+        pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+37, time_picker_start_date.rectangle().top+2))
+        time.sleep(self.WAIT_TIME_LONG)
+        pywinauto.keyboard.send_keys(month)
+        time.sleep(self.WAIT_TIME_LONG)
+    
+        # 날짜-일
+        pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+55, time_picker_start_date.rectangle().top+2))
+        time.sleep(self.WAIT_TIME_LONG)
+        pywinauto.keyboard.send_keys(day)
+        time.sleep(self.WAIT_TIME_LONG)
+        logging.info(f"시작 날짜 선택:{year}-{month}-{day}")
+
+        
+    def _select_time_picker_start_hr_min(self):
+        hr, min = self.start_time[-2:]
+        time_picker_start_hr= self.time_picker_start.child_window(auto_id="comboBox_Hour", control_type="ComboBox")
+        time_picker_start_min= self.time_picker_start.child_window(auto_id="comboBox_Minute", control_type="ComboBox")
+
+        # 시간
+        time_picker_start_hr.click_input()
+        time.sleep(self.WAIT_TIME_LONG_LONG)
+        time_picker_start_hr.child_window(title=hr, control_type="ListItem").click_input()
+        time.sleep(self.WAIT_TIME_LONG)
+        # 분
+        time_picker_start_min.click_input()
+        time.sleep(self.WAIT_TIME_LONG_LONG)
+        time_picker_start_min.child_window(title=min, control_type="ListItem").click_input()
+        time.sleep(self.WAIT_TIME_LONG)
+
+        logging.info(f"시작 시간 선택:{hr}:{min}")
+
+
+
     def select_options(self):
         self._focus_main_win()
         self._select_water_system()
         self._select_dam()
-
-
+        self.load_btn.click_input()
+        time.sleep(self.WAIT_TIME_LONG_LONG) 
+        print("옵션 불러오기 완료.")
+        # ===아래는 OPT에서 안불러와지는 항목들===
+        self._select_time_interval()
+        self._select_time_picker_start_date()
+        if self.time_interval in ["10분", "30분", "60분"]:
+            self._select_time_picker_start_hr_min()
     
     # 옵션 파일 처리
     def _check_opt_file(self): 
         opt_name = self.opt_name_map[self.args.water_system_name][self.args.dam_name]
         opt_file_path = os.path.join(self.FILE_DIR, f"{opt_name}.OPT")
         logging.info(f"옵션 파일 경로 {opt_file_path=}")
-
         # 파일 없으면 생성 
         if not os.path.exists(opt_file_path):
             with open(opt_file_path, "w") as f:
@@ -200,32 +300,36 @@ class CosfimHandler:
             logging.info("OPT 파일 생성 완료")
         else:
             logging.info("OPT 파일 존재")
-        
+        print(f"{opt_file_path=}")
         return opt_file_path
-
-    def _make_opt_data_from_args(self):
-        args = self.args
-        opt_data = "수정된 데이터"
-        logging.info("OPT 데이터 생성 완료")
-        return opt_data
         
     def _save_opt_file(self, opt_file_path, opt_data):
+        if opt_data is None:
+            logging.info("OPT 데이터가 제공되지 않음")
+            return
+        print(f"{opt_data=}")
         with open(opt_file_path, "w") as f:
             f.write(opt_data)
+
         logging.info("OPT 파일 저장 완료")
+        with open(opt_file_path, "r") as f:
+            print(f.read())
+
 
     def handle_opt_file(self):
-        opt_data = self._make_opt_data_from_args()
         opt_file_path = self._check_opt_file()
-        self._save_opt_file(opt_file_path, opt_data)
+        print(f"======{self.opt_data=}")
+        self._save_opt_file(opt_file_path, self.opt_data)
+
 
     
     # 데이터 처리
     def _get_data(self):
              
         # 수정된 파일 불러오기 
-        self.load_btn.click_input()
+        # self.load_btn.click_input()
         time.sleep(self.WAIT_TIME_LONG)
+
         # F5로 실행 
         self.main_win.set_focus()
         time.sleep(self.WAIT_TIME)
@@ -240,8 +344,6 @@ class CosfimHandler:
         table_tap = graph_win.child_window(auto_id="tabControl", control_type="Tab").child_window(title="테이블", control_type="TabItem")
         table_tap.click_input()
         time.sleep(self.WAIT_TIME)
-
-        logging.info("테이블 영역 찾기dma~~~~~~~~~")
 
         table_area = graph_win.child_window(title="테이블", auto_id="tabPage_Table", control_type="Pane")
         table_sheet = table_area.child_window(auto_id="sheet_DetailView", control_type="Pane")
@@ -258,7 +360,6 @@ class CosfimHandler:
         # 복사 
         pywinauto.keyboard.send_keys("^c")
         time.sleep(self.WAIT_TIME_LONG)
-        logging.info("전체 선택")
         table_data = pyperclip.paste()
 
         # 창 닫기 
@@ -282,12 +383,6 @@ class CosfimHandler:
             # 탭으로 구분된 데이터를 데이터프레임으로 읽기
             df = pd.read_csv(data_io, sep='\t', encoding='utf-8')
             
-            logging.info("\n=== 판다스 데이터프레임 ===")
-            logging.info(f"데이터프레임 크기: {df.shape}")
-            logging.info(f"컬럼명: {list(df.columns)}")
-            logging.info("\n처음 5행:")
-            logging.info(df.head())
-            
             # 데이터프레임을 CSV 파일로 저장
             df.to_csv("table_data.csv", index=False, encoding='utf-8-sig')
             logging.info(f"\n데이터프레임을 table_data.csv 파일로 저장했습니다.")
@@ -297,45 +392,59 @@ class CosfimHandler:
             print(f"fail:None")
     
 
-    def _send_data(self):
-        with open("table_data.csv", "rb") as csv_file:
-            files = {"file": ("table_data.csv", csv_file, "text/csv")}
-            # response = requests.post("http://test-server:8080/api/v1/data", files=files)
-            # if response.status_code == 200:
-            #     logging.info("서버 응답: " + response.text)
-            logging.info(f"CSV 파일 전송 완료")# . 응답 상태: {response.status_code}")
+    def forward(self, succcess=True, err_msg=""):
+        files = None
+        if succcess:
+            message = "success"
+            with open("table_data.csv", "rb") as csv_file:
+                files = {"file": ("table_data.csv", csv_file, "text/csv")}
+        else:
+            message = f"fail: {err_msg}"
+
+        # response = requests.post("http://172.17.0.1:8000/api/v1/data", files=files, json={"message": message}) # 실패하면 그냥 None 보내기
+        # if response.status_code == 200:
+        #     logging.info("서버 응답: " + response.text)
+
+        logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
+
     
+
     def handle_data(self):
         clipboard_data = self._get_data()
         self._save_data(clipboard_data)
-        self._send_data()
+        self.forward()
 
 
 
 if __name__ == "__main__":
     try:
         hdlr = CosfimHandler()
+        if hdlr.args.opt_data is None:
+            raise ValueError("옵션 데이터가 제공되지 않았습니다")
+
         hdlr.launch_app()
         logging.info("런치 완료")
+
         hdlr.get_elements()
         logging.info("요소 처리 완료")
+
         hdlr.handle_opt_file()
         logging.info("옵션 처리 완료")
+
         hdlr.select_options()
         logging.info("항목 선택 완료")
+
         hdlr.handle_data()
         logging.info("데이터 처리 완료")
+
+    except ValueError as e:
+        logging.info(f"에러 발생: {e}")
+        hdlr.forward(succcess=False, err_msg=str(e))
+        sys.exit(1)
     except KeyboardInterrupt:
-        logging.info("내가 중단함!")
+        logging.info("사용자 중단")
         sys.exit(130)
     except Exception as e:
         logging.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
+        hdlr.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
-
-
-
-# http://drive.google.com/drive/folders/1NN70LsQGQ21NKf4gD8r40tnADtU7pE3c?usp=sharing
-
- ### ================================================ 쉘로 만들어야 함!!!! ================================================
- ### ================================================ 쉘로 만들어야 함!!!! ================================================
- ### ================================================ 쉘로 만들어야 함!!!! ================================================
