@@ -44,6 +44,19 @@
                     "--dam_name", "대암댐",
                     "--opt_data", "sample_opt\\태화강-대암댐-0707-0712-60.OPT"
                 ]
+        },
+        {
+            "name": " Invalid OPT 태화강 대암댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "태화강", 
+                    "--dam_name", "대암댐",
+                    "--opt_data", "sample_opt\\태화강-대암댐-invalid.OPT"
+                ]
         }
     ]
 }

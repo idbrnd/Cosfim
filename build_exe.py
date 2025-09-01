@@ -9,7 +9,8 @@ def build_exe():
     options = [
         'main.py',                     # 메인 스크립트
         '--onefile',                   # 단일 실행 파일로 생성
-        '--windowed',                  # 콘솔 창 숨김 (GUI 앱용)
+        # '--windowed',                # 콘솔 창 숨김 (GUI 앱용)
+        '--console',                   # 콘솔 창 표시 (디버깅용)
         '--name=COSFIM_Automation',    # 실행 파일 이름
         '--add-data=requirements.txt;.',  # requirements.txt 포함
         '--hidden-import=pywinauto',
