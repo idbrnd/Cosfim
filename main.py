@@ -10,6 +10,10 @@ import pandas as pd
 from io import StringIO
 import requests
 import argparse
+from pywinauto.timings import TimeoutError
+from pywinauto.findwindows import ElementNotFoundError
+from contextlib import suppress
+
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -333,6 +337,35 @@ class CosfimHandler:
         logging.info(f"시작 시간 선택:{hr}:{min}")
 
 
+    def _check_error_window(self):
+        """에러 창을 확인하는 함수"""
+        try:
+            error_win = self.main_win.child_window(title="선택", control_type="Window")
+            error_win.wait("visible", timeout=2)
+            error_win.set_focus()
+            time.sleep(self.WAIT_TIME)
+
+            # 에러 창이 발견되면 처리
+            logging.info("OPT 파일 불러오기 중 에러 발생")
+            
+            # 에러 메시지 가져오기
+            error_title = "OPT 파일 불러오기 중 에러 발생"
+            try:
+                error_text_win = error_win.child_window(control_type="Text")
+                error_title = error_text_win.window_text()
+            except:
+                pass 
+            error_win.child_window(title="아니요(N)", control_type="Button").click_input()
+            time.sleep(self.WAIT_TIME)
+            raise ValueError(f"에러 창 발생: {error_title}")
+        except ValueError as e:
+            raise 
+        except (ElementNotFoundError, TimeoutError):
+            logging.info("에러 창 없음 - 정상 진행")
+        except Exception as e:
+            logging.error(f"에러 창 확인 중 예상치 못한 에러: {e}")
+    
+
     def select_options(self):
         try: 
             self._focus_main_win()
@@ -340,12 +373,13 @@ class CosfimHandler:
             self._select_dam()
             self.load_btn.click_input()
             time.sleep(self.WAIT_TIME_LONG_LONG)
+            self._check_error_window()
             # ===아래는 OPT에서 안불러와지는 항목들 (필요시 활성화)===
             # self._select_time_interval()
             # self._select_time_picker_start_date()
             # if self.time_interval in ["10분", "30분", "60분"]:
             #     self._select_time_picker_start_hr_min()
-            logging.info("옵션 선택 완료.")
+            logging.info("OPT 파일 불러오기 완료")
 
         except Exception as e:
             logging.error(f"옵션 선택 중 에러 발생: {e}")
@@ -389,12 +423,7 @@ class CosfimHandler:
     
     # 데이터 처리
     def _get_data(self):
-             
-        # 수정된 파일 불러오기 
-        # self.load_btn.click_input()
-        time.sleep(self.WAIT_TIME_LONG)
-
-        # F5로 실행 
+        # 실행 
         self.main_win.set_focus()
         time.sleep(self.WAIT_TIME)
         keyboard.send_keys("{F5}")
