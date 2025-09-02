@@ -15,6 +15,30 @@ import argparse
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
+class Forwarder:
+    def __init__(self):
+        pass
+
+    def forward(self, succcess=True, data_path="table_data.csv", err_msg=""):
+        files = None
+        if succcess:
+            message = "success"
+            with open(data_path, "rb") as csv_file:
+                files = {"file": (data_path, csv_file, "text/csv")}
+                response = requests.post("http://192.168.0.15:8080/file", files=files, json={"message": message})
+        else:
+            message = f"fail: {err_msg}"
+            response = requests.post("http://192.168.0.15:8080/file", json={"message": message}) # 실패하면 그냥 None 보내기
+
+        print(f"{response.status_code=}")
+        print(f"{response.text=}")
+
+        if response.status_code == 200:
+            logging.info("서버 응답: " + response.text)
+
+        logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
+
+
 class CosfimHandler:
     APP_PATH = r"C:\Program Files (x86)\KWater\댐군 홍수조절 연계 운영 시스템\COSFIM_GUI"
     FILE_DIR = r"C:\COSFIM\WRKSPACE"
@@ -22,7 +46,8 @@ class CosfimHandler:
     WAIT_TIME_LONG = 0.5
     WAIT_TIME_LONG_LONG = 1
     
-    def __init__(self):
+    def __init__(self, forwarder):
+        self.forwarder = forwarder
         # 인자 및 데이터
         self.args = self.arg_parser()
         if self.args.opt_data is None:
@@ -52,8 +77,6 @@ class CosfimHandler:
                 },
         } # C:\COSFIM\GUI\DAM.spec 파일에 추가적인 댐(구분) 정보/C:\COSFIM\GUI\수리모형\FLDWAV.spec에 강(수계) 정보 있음
 
-
-
         # UI 요소 초기화
         self.app = None
         self.main_win = None
@@ -68,7 +91,7 @@ class CosfimHandler:
         parser = argparse.ArgumentParser()
         parser.add_argument("--water_system_name", type=str, default="태화강")
         parser.add_argument("--dam_name", type=str, default="대곡댐")
-        parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 이게 인자로 받기는 큰 사이즈 아닌가
+        parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 인자로 받을지?
         parser.add_argument("--id", type=str, default="20052970")
         parser.add_argument("--pw", type=str, default="20052970")
         return parser.parse_args()
@@ -207,6 +230,7 @@ class CosfimHandler:
     # 항목 선택 
     def _select_water_system(self):
         # 수계, 구분 선택
+        self._focus_main_win()
         self.water_system_box.click_input()
         time.sleep(self.WAIT_TIME)
         self.water_system_box.child_window(title=self.args.water_system_name, control_type="ListItem").click_input()
@@ -214,6 +238,7 @@ class CosfimHandler:
         logging.info(f"수계 선택 {self.args.water_system_name=}")
     
     def _select_dam(self):
+        self._focus_main_win()
         self.dam_box.click_input()
         time.sleep(self.WAIT_TIME)
         self.dam_box.child_window(title=self.args.dam_name, control_type="ListItem").click_input()
@@ -223,7 +248,7 @@ class CosfimHandler:
     # 분석 단위 선택 
     def _select_time_interval(self):
         time_interval = self.time_interval
-
+        self._focus_main_win()
         self.time_interval_box.click_input()
         time.sleep(self.WAIT_TIME)
         self.time_interval_box.child_window(title=time_interval, control_type="ListItem").click_input()
@@ -233,9 +258,8 @@ class CosfimHandler:
     # 시작 시간 선택
     def _select_time_picker_start_date(self):
         year, month, day = self.start_time[:3]
-
+        self._focus_main_win()
         time_picker_start_date= self.time_picker_start.child_window(auto_id="dateTimePicker", control_type="Pane")
-
 
         # 날짜-연
         pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+2, time_picker_start_date.rectangle().top+2))
@@ -259,6 +283,7 @@ class CosfimHandler:
         
     def _select_time_picker_start_hr_min(self):
         hr, min = self.start_time[-2:]
+        self._focus_main_win()
         time_picker_start_hr= self.time_picker_start.child_window(auto_id="comboBox_Hour", control_type="ComboBox")
         time_picker_start_min= self.time_picker_start.child_window(auto_id="comboBox_Minute", control_type="ComboBox")
 
@@ -276,20 +301,25 @@ class CosfimHandler:
         logging.info(f"시작 시간 선택:{hr}:{min}")
 
 
-
     def select_options(self):
-        self._focus_main_win()
-        self._select_water_system()
-        self._select_dam()
-        self.load_btn.click_input()
-        time.sleep(self.WAIT_TIME_LONG_LONG) 
-        print("옵션 불러오기 완료.")
-        # ===아래는 OPT에서 안불러와지는 항목들===
-        # self._select_time_interval()
-        # self._select_time_picker_start_date()
-        # if self.time_interval in ["10분", "30분", "60분"]:
-        #     self._select_time_picker_start_hr_min()
-    
+        try: 
+            self._focus_main_win()
+            self._select_water_system()
+            self._select_dam()
+            self.load_btn.click_input()
+            time.sleep(self.WAIT_TIME_LONG_LONG)
+            # ===아래는 OPT에서 안불러와지는 항목들 (필요시 활성화)===
+            # self._select_time_interval()
+            # self._select_time_picker_start_date()
+            # if self.time_interval in ["10분", "30분", "60분"]:
+            #     self._select_time_picker_start_hr_min()
+            logging.info("옵션 선택 완료.")
+
+        except Exception as e:
+            logging.error(f"옵션 선택 중 에러 발생: {e}")
+            raise
+
+
     # 옵션 파일 처리
     def _check_opt_file(self): 
         opt_name = self.opt_name_map[self.args.water_system_name][self.args.dam_name]
@@ -313,7 +343,7 @@ class CosfimHandler:
         with open(opt_file_path, "w") as f:
             f.write(opt_data)
 
-        logging.info("OPT 파일 저장 완료")
+        logging.info("OPT 파일 적용 완료")
         with open(opt_file_path, "r") as f:
             print(f.read())
 
@@ -396,34 +426,26 @@ class CosfimHandler:
             print(f"fail:None")
     
 
-    def forward(self, succcess=True, err_msg=""):
-        files = None
-        if succcess:
-            message = "success"
-            with open("table_data.csv", "rb") as csv_file:
-                files = {"file": ("table_data.csv", csv_file, "text/csv")}
-        else:
-            message = f"fail: {err_msg}"
-
-        # response = requests.post("http://172.17.0.1:8000/api/v1/data", files=files, json={"message": message}) # 실패하면 그냥 None 보내기
-        # if response.status_code == 200:
-        #     logging.info("서버 응답: " + response.text)
-
-        logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
-
     
 
     def handle_data(self):
-        clipboard_data = self._get_data()
-        self._save_data(clipboard_data)
-        self.forward()
+        try:
+            clipboard_data = self._get_data()
+            self._save_data(clipboard_data)
+            self.forwarder.forward(data_path="table_data.csv")
+        except TimeoutError as e:
+            raise
+        except Exception as e:
+            logging.error(f"데이터 처리 중 에러 발생: {e}")
+            raise
 
 
 
 if __name__ == "__main__":
     try:
-        hdlr = CosfimHandler()
-        if hdlr.args.opt_data is None:
+        forwarder = Forwarder()
+        hdlr = CosfimHandler(forwarder)
+        if hdlr.args.opt_data is None or hdlr.args.opt_data == "":
             raise ValueError("옵션 데이터가 제공되지 않았습니다")
 
         hdlr.launch_app()
@@ -442,13 +464,17 @@ if __name__ == "__main__":
         logging.info("데이터 처리 완료")
 
     except ValueError as e:
-        logging.info(f"에러 발생: {e}")
-        hdlr.forward(succcess=False, err_msg=str(e))
+        logging.info(f"ValueError: {e}")
+        forwarder.forward(succcess=False, err_msg=str(e))
+        sys.exit(1)
+    except TimeoutError as e:
+        logging.info(f"TimeoutError: {e}")
+        forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
     except KeyboardInterrupt:
-        logging.info("사용자 중단")
+        logging.info("사용자에 의한 중단")
         sys.exit(130)
     except Exception as e:
-        logging.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
-        hdlr.forward(succcess=False, err_msg=str(e))
+        logging.error(f"Exception: {e}", exc_info=True)
+        forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
