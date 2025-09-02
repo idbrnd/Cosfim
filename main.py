@@ -448,9 +448,10 @@ class CosfimHandler:
             
             # 탭으로 구분된 데이터를 데이터프레임으로 읽기
             df = pd.read_csv(data_io, sep='\t', encoding='utf-8')
-            
+            filtered_df = df[["월일시분", "관측우량(mm)", "유효우량(mm)", "관측유입(㎥/s)", "계산유입(㎥/s)", "댐수위(El. m)", "총방류(㎥/s)"]]
+            print(f"{filtered_df.head()=}")
             # 데이터프레임을 CSV 파일로 저장
-            df.to_csv("table_data.csv", index=False, encoding='utf-8-sig')
+            filtered_df.to_csv("table_data.csv", index=False, encoding='utf-8-sig')
             logging.info(f"\n데이터프레임을 table_data.csv 파일로 저장했습니다.")
 
         except Exception as e:
