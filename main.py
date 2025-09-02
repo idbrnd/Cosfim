@@ -190,12 +190,13 @@ class CosfimHandler:
 
     def get_elements(self):
         self.main_win = self._main_win()
+        if not self.is_new_instance:
+            self._close_residue_windows()
         self.tool_bar, self.save_btn, self.load_btn = self._tool_bar()   
         self.water_system_box, self.dam_box, self.time_interval_box, self.time_picker_start = self._select_box()
 
     # 메인 화면 처리
     def _main_win(self):
-
         # 메인 화면
         main_win = self.app.window(title_re="COSFIM.*Web Service", control_type="Window")
         
@@ -209,9 +210,40 @@ class CosfimHandler:
         time.sleep(self.WAIT_TIME)
         return main_win
 
+
+    def _close_windows(self, window):
+        """에러 무시하고 윈도우 제거"""
+        with suppress(Exception):
+            window.close()
+            time.sleep(self.WAIT_TIME)
+
+
+    def _close_residue_windows(self):
+        """이전 실행에서 남은 윈도우가 있다면 제거"""
+        # 데이터 출력 창 
+        data_output_wins = [
+            self.app.window(auto_id="GraphForm", control_type="Window"),            
+            self.app.window(auto_id="AnalysisForm", control_type="Window"),
+            self.app.window(auto_id="DiagramSlideForm", control_type="Window")
+        ]
+        for window in data_output_wins:
+            self._close_windows(window)
+
+        # 에러, 알림창 
+        self.main_win.set_focus()
+        time.sleep(self.WAIT_TIME)
+        error_wins = [
+            self.main_win.child_window(title="선택", control_type="Window"),
+            self.main_win.child_window(title="알림", control_type="Window"),
+        ]
+        for window in error_wins:
+            self._close_windows(window)
+
+
     def _focus_main_win(self):
         self.main_win.set_focus()
         time.sleep(self.WAIT_TIME)
+
 
     def _tool_bar(self):
         # 툴바
