@@ -1,0 +1,19 @@
+# 코드 그대로 사용시
+# 성공 예시
+python main.py --water_system_name "거제권" --dam_name "구천댐" --opt_data "sample_opt/거제권-구천댐-0203-0207-24.OPT"
+python main.py --water_system_name "낙동강" --dam_name "합천댐" --opt_data "sample_opt/낙동강-합천댐-0805-30.OPT"
+python main.py --water_system_name "태화강" --dam_name "대암댐" --opt_data "sample_opt/태화강-대암댐-0707-0712-60.OPT" 
+# 실패 예시
+python main.py --water_system_name "태화강" --dam_name "대암댐" --opt_data "sample_opt/태화강-대암댐-invalid.OPT"
+
+
+# exe 사용시
+# 성공 예시
+COSFIM_Automation.exe --water_system_name "거제권" --dam_name "구천댐" --opt_data "sample_opt/거제권-구천댐-0203-0207-24.OPT"
+COSFIM_Automation.exe --water_system_name "낙동강" --dam_name "합천댐" --opt_data "낙동강-합천댐-0805-30.OPT"
+COSFIM_Automation.exe --water_system_name "태화강" --dam_name "대암댐" --opt_data "태화강-대암댐-0707-0712-60.OPT" 
+# 실패 예시
+COSFIM_Automation.exe --water_system_name "태화강" --dam_name "대암댐" --opt_data "태화강-대암댐-invalid.OPT"
+
+
+# 필요시 main.py, COSFIM_Automation.exe, opt data를 절대 경로로 수정 

@@ -34,11 +34,10 @@ class Forwarder:
             message = f"fail: {err_msg}"
             response = requests.post("http://192.168.0.15:8080/file", json={"message": message}) # 실패하면 그냥 None 보내기
 
-        print(f"{response.status_code=}")
-        print(f"{response.text=}")
-
         if response.status_code == 200:
             logging.info("서버 응답: " + response.text)
+        else:
+            logging.info(f"서버 응답 실패: {response.status_code}, {response.text}")
 
         logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
 
@@ -218,13 +217,16 @@ class CosfimHandler:
     def _close_windows(self, window):
         """에러 무시하고 윈도우 제거"""
         with suppress(Exception):
-            window.close()
+            if window.exists():
+                logging.info(f"윈도우 제거: {window.window_text()}")
+                window.close()
             time.sleep(self.WAIT_TIME)
 
 
     def _close_residue_windows(self):
         """이전 실행에서 남은 윈도우가 있다면 제거"""
         # 데이터 출력 창 
+        logging.info("불필요한 윈도우 정리 시작...")
         data_output_wins = [
             self.app.window(auto_id="GraphForm", control_type="Window"),            
             self.app.window(auto_id="AnalysisForm", control_type="Window"),
@@ -240,9 +242,14 @@ class CosfimHandler:
             self.main_win.child_window(title="선택", control_type="Window"),
             self.main_win.child_window(title="알림", control_type="Window"),
         ]
-        for window in error_wins:
-            self._close_windows(window)
+        for window in error_wins:            
+            with suppress(Exception):
+                if window.exists():
+                    logging.info(f"윈도우 제거: {window.window_text()}")
+                    window.child_window(title="아니요(N)", auto_id="7", control_type="Button").click_input()
+                time.sleep(self.WAIT_TIME)
 
+        logging.info("불필요한 윈도우 정리 완료")
 
     def _focus_main_win(self):
         self.main_win.set_focus()
@@ -437,8 +444,6 @@ class CosfimHandler:
         table_tap = graph_win.child_window(auto_id="tabControl", control_type="Tab").child_window(title="테이블", control_type="TabItem")
         table_tap.click_input()
         time.sleep(self.WAIT_TIME)
-        # =============시연을 위한 지연 추가===================
-        time.sleep(10)
 
         table_area = graph_win.child_window(title="테이블", auto_id="tabPage_Table", control_type="Pane")
         table_sheet = table_area.child_window(auto_id="sheet_DetailView", control_type="Pane")
