@@ -15,31 +15,43 @@ from pywinauto.findwindows import ElementNotFoundError
 from contextlib import suppress
 
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--water_system_name", type=str, default="태화강")
+parser.add_argument("--dam_name", type=str, default="대곡댐")
+parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 인자로 받을지?
+parser.add_argument("--api_end_point", type=str, default="http://localhost:8080")
+parser.add_argument("--id", type=str, default="20052970")
+parser.add_argument("--pw", type=str, default="20052970")
+
+args = parser.parse_args()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class Forwarder:
-    def __init__(self):
-        pass
+    def __init__(self, end_point):
+        self.end_point = end_point
 
     def forward(self, succcess=True, data_path="table_data.csv", err_msg=""):
         files = None
-        if succcess:
-            message = "success"
-            with open(data_path, "rb") as csv_file:
-                files = {"file": (data_path, csv_file, "text/csv")}
-                response = requests.post("http://192.168.0.15:8080/file", files=files, json={"message": message})
-        else:
-            message = f"fail: {err_msg}"
-            response = requests.post("http://192.168.0.15:8080/file", json={"message": message}) # 실패하면 그냥 None 보내기
+        try: 
+            if succcess:
+                message = "success"
+                with open(data_path, "rb") as csv_file:
+                    files = {"file": (data_path, csv_file, "text/csv")}
+                    response = requests.post(self.end_point, files=files, json={"message": message})
+            else:
+                message = f"fail: {err_msg}"
+                response = requests.post(self.end_point, json={"message": message}) # 실패하면 그냥 None 보내기
 
-        if response.status_code == 200:
-            logging.info("서버 응답: " + response.text)
-        else:
-            logging.info(f"서버 응답 실패: {response.status_code}, {response.text}")
+            if response.status_code == 200:
+                logging.info("서버 응답: " + response.text)
+            else:
+                logging.info(f"서버 응답 실패: {response.status_code}, {response.text}")
 
-        logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
+            logging.info(f"포워딩 완료: 성공 여부: {succcess}, 메시지: {message}")
+        except Exception as e:
+            logging.info(f"포워딩 실패:{e}")
 
 
 class CosfimHandler:
@@ -49,15 +61,14 @@ class CosfimHandler:
     WAIT_TIME_LONG = 0.5
     WAIT_TIME_LONG_LONG = 1
     
-    def __init__(self, forwarder):
+    def __init__(self, args, forwarder):
         self.forwarder = forwarder
         # 인자 및 데이터
-        self.args = self.arg_parser()
+        self.args = args
         if self.args.opt_data is None:
             return
         self.opt_data = self.set_opt_data(self.args.opt_data)
-        print(f"======{self.opt_data=}")
-        print(f"======{self.args.opt_data=}")
+        logging.info(f"======{self.args.opt_data=}")
         self.start_time = self.get_start_time(self.opt_data)
         self.time_interval = self.get_time_interval(self.opt_data, self.start_time_idx)
         self.time_interval_list = self.get_time_interval_list(self.time_interval)
@@ -89,16 +100,6 @@ class CosfimHandler:
         self.water_system_box = None
         self.dam_box = None
 
-
-    def arg_parser(self):
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--water_system_name", type=str, default="태화강")
-        parser.add_argument("--dam_name", type=str, default="대곡댐")
-        parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 인자로 받을지?
-        parser.add_argument("--id", type=str, default="20052970")
-        parser.add_argument("--pw", type=str, default="20052970")
-        return parser.parse_args()
-
     def set_opt_data(self, opt_data):
         if self.args.opt_data is not None and os.path.exists(self.args.opt_data):
             with open(opt_data, "r") as f:
@@ -114,11 +115,11 @@ class CosfimHandler:
         for idx, line in enumerate(opt_data):
             if line[:2] in("19","20"):
                 cnt += 1
-                print(f"{cnt=}, {line=}")
+                logging.info(f"{cnt=}, {line=}")
                 if cnt == 2:
                     ele = line.split(" ")
                     year, month, day, hr, min = ele[-6:]
-                    print(f"{year=} {month=} {day=} {hr=} {min=}")
+                    logging.info(f"{year=} {month=} {day=} {hr=} {min=}")
                     self.start_time_idx = idx
                     break
         return year, month, day, hr, min
@@ -130,7 +131,7 @@ class CosfimHandler:
         time_interval_int = ele[-1]
         time_interval_map = {"10": "10분", "30": "30분", "60": "60분",  "1440": "24시간"}
         time_interval = time_interval_map[time_interval_int]
-        print(f"{time_interval=}")
+        logging.info(f"{time_interval=}")
         return time_interval
 
 
@@ -405,25 +406,25 @@ class CosfimHandler:
             logging.info("OPT 파일 생성 완료")
         else:
             logging.info("OPT 파일 존재")
-        print(f"{opt_file_path=}")
+        logging.info(f"{opt_file_path=}")
         return opt_file_path
         
     def _save_opt_file(self, opt_file_path, opt_data):
         if opt_data is None:
             logging.info("OPT 데이터가 제공되지 않음")
             return
-        print(f"{opt_data=}")
+        logging.info(f"{opt_data=}")
         with open(opt_file_path, "w") as f:
             f.write(opt_data)
 
         logging.info("OPT 파일 적용 완료")
         with open(opt_file_path, "r") as f:
-            print(f.read())
+            logging.info(f.read())
 
 
     def handle_opt_file(self):
         opt_file_path = self._check_opt_file()
-        print(f"======{self.opt_data=}")
+        logging.info(f"{self.opt_data=}")
         self._save_opt_file(opt_file_path, self.opt_data)
 
 
@@ -483,16 +484,22 @@ class CosfimHandler:
             # 탭으로 구분된 데이터를 데이터프레임으로 읽기
             df = pd.read_csv(data_io, sep='\t', encoding='utf-8')
             filtered_df = df[["월일시분", "관측우량(mm)", "유효우량(mm)", "관측유입(㎥/s)", "계산유입(㎥/s)", "댐수위(El. m)", "총방류(㎥/s)"]]
-            print(f"{filtered_df.head()=}")
+            filtered_df.rename(columns={
+                "월일시분": "obsrdt", 
+                "관측우량(mm)": "obsrf", 
+                "유효우량(mm)": "effrf", 
+                "관측유입(㎥/s)": "obsinflow", 
+                "계산유입(㎥/s)": "calcinflow", 
+                "댐수위(El. m)": "lowlevel", 
+                "총방류(㎥/s)": "totdcwtrqy"
+            }, inplace=True)
+            logging.info(f"{filtered_df.head()=}")
             # 데이터프레임을 CSV 파일로 저장
             filtered_df.to_csv("table_data.csv", index=False, encoding='utf-8-sig')
             logging.info(f"\n데이터프레임을 table_data.csv 파일로 저장했습니다.")
 
         except Exception as e:
             logging.info(f"데이터프레임 변환 중 오류 발생: {e}")
-            print(f"fail:None")
-    
-
     
 
     def handle_data(self):
@@ -510,38 +517,39 @@ class CosfimHandler:
 
 if __name__ == "__main__":
     try:
-        forwarder = Forwarder()
-        hdlr = CosfimHandler(forwarder)
+        forwarder = Forwarder(args.api_end_point)
+        hdlr = CosfimHandler(args, forwarder)
         if hdlr.args.opt_data is None or hdlr.args.opt_data == "":
             raise ValueError("옵션 데이터가 제공되지 않았습니다")
 
         hdlr.launch_app()
-        logging.info("런치 완료")
+        logging.info("===런치 완료===")
 
         hdlr.get_elements()
-        logging.info("요소 처리 완료")
+        logging.info("===요소 처리 완료===")
 
         hdlr.handle_opt_file()
-        logging.info("옵션 처리 완료")
+        logging.info("===옵션 처리 완료===")
 
         hdlr.select_options()
-        logging.info("항목 선택 완료")
+        logging.info("===항목 선택 완료===")
 
         hdlr.handle_data()
-        logging.info("데이터 처리 완료")
+        logging.info("===데이터 처리 완료===")
 
     except ValueError as e:
-        logging.info(f"ValueError: {e}")
+        logging.error(f"ValueError: {e}")
         forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
     except TimeoutError as e:
-        logging.info(f"TimeoutError: {e}")
+        logging.error(f"TimeoutError: {e}")
         forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
     except KeyboardInterrupt:
-        logging.info("사용자에 의한 중단")
+        logging.error("사용자에 의한 중단")
         sys.exit(130)
     except Exception as e:
-        logging.error(f"Exception: {e}", exc_info=True)
+        logging.error(f"Exception: {e}")
+        # logging.info(f"Exception: {e}", exc_info=True)
         forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
