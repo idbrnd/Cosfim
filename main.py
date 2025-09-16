@@ -27,20 +27,46 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 class Forwarder:
-    def __init__(self, end_point):
+    def __init__(self, end_point, water_system_name, dam_name, dam_code, template_id):
         self.end_point = end_point
+        self.dam_name = dam_name
+        self.water_system_name = water_system_name
+        self.dam_code = dam_code
+        self.template_id = template_id
 
     def forward(self, succcess=True, data_path="table_data.csv", err_msg=""):
         files = None
         try: 
+            info_data = {
+                "damName": self.dam_name,
+                "waterSystemName": self.water_system_name, 
+                "damCode": self.dam_code,
+                "error": ""
+            }
+            query_params = {
+                "templateId": self.template_id
+            }
+            
             if succcess:
                 message = "success"
                 with open(data_path, "rb") as csv_file:
                     files = {"file": (data_path, csv_file, "text/csv")}
-                    response = requests.post(self.end_point, files=files, json={"message": message})
+                    response = requests.post(
+                        self.end_point, 
+                        files=files, 
+                        data=info_data,
+                        params=query_params
+                    )
             else:
-                message = f"fail: {err_msg}"
-                response = requests.post(self.end_point, json={"message": message}) # 실패하면 그냥 None 보내기
+                info_data["error"] = err_msg if err_msg else "unknown error"
+                response = requests.post(
+                        self.end_point, 
+                        files=None, 
+                        data=info_data,
+                        params=query_params
+                    )
+
+            logging.info(f"{response.request.__dict__=}")
 
             if response.status_code == 200:
                 logging.info("서버 응답: " + response.text)
