@@ -493,6 +493,9 @@ class CosfimHandler:
                 "댐수위(El. m)": "lowlevel", 
                 "총방류(㎥/s)": "totdcwtrqy"
             }, inplace=True)
+
+            # 시간 형식 수정 
+            filtered_df["obsrdt"] = filtered_df["obsrdt"].apply(lambda x: str(x).replace(" ", "").replace(":", "").replace("-", ""))
             logging.info(f"{filtered_df.head()=}")
             # 데이터프레임을 CSV 파일로 저장
             filtered_df.to_csv("table_data.csv", index=False, encoding='utf-8-sig')
