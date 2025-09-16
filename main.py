@@ -14,11 +14,46 @@ from pywinauto.findwindows import ElementNotFoundError
 from contextlib import suppress
 
 
-water_system_name = "낙동강"
-dam_name = "합천댐"
+water_system_name = "거제권"
+dam_name = "구천댐"
 dam_code = "2011602"
 template_id = "cbc038d8-87f6-4e81-a794-4b9945bc6a1a"
-opt_data = None  # 일단 파일 위치로 설정 # 인자로 받을지?
+opt_data = """O 2025 070624 071424 N  
+N
+1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+2025 07 06 00 00
+2025 07 11 00 00
+1
+120 60
+0.000 0.000 1.000 1.000
+1 0 0 3 2025 7 11 24 0
+1 1 0 0
+1
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.000 
+0.0 
+"""
 api_end_point = "http://223.130.139.28/api/v1/widget/upload/cosfim"
 user_id = "20052970"
 user_pw = "20052970"
