@@ -161,7 +161,7 @@ class CosfimHandler:
     def _update_check(self):
         try: 
             update_win = self.app.window(title_re="선택")
-            update_win.wait("visible", timeout=1)
+            update_win.wait("visible", timeout=5)
             # update_win.child_window(auto_id="6", control_type="Button").click_input()
             # =============시연을 위한 업데이트 무시(버전 고정)===================
             update_win.child_window(auto_id="7", control_type="Button").click_input()
