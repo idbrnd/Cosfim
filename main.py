@@ -9,21 +9,19 @@ import pyperclip
 import pandas as pd
 from io import StringIO
 import requests
-import argparse
 from pywinauto.timings import TimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 from contextlib import suppress
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--water_system_name", type=str, default="태화강")
-parser.add_argument("--dam_name", type=str, default="대곡댐")
-parser.add_argument("--opt_data", type=str, default=None) # 일단 파일 위치로 설정 # 인자로 받을지?
-parser.add_argument("--api_end_point", type=str, default="http://localhost:8080")
-parser.add_argument("--id", type=str, default="20052970")
-parser.add_argument("--pw", type=str, default="20052970")
-
-args = parser.parse_args()
+water_system_name = "낙동강"
+dam_name = "합천댐"
+dam_code = "2011602"
+template_id = "cbc038d8-87f6-4e81-a794-4b9945bc6a1a"
+opt_data = None  # 일단 파일 위치로 설정 # 인자로 받을지?
+api_end_point = "http://223.130.139.28/api/v1/widget/upload/cosfim"
+user_id = "20052970"
+user_pw = "20052970"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -61,14 +59,19 @@ class CosfimHandler:
     WAIT_TIME_LONG = 0.5
     WAIT_TIME_LONG_LONG = 1
     
-    def __init__(self, args, forwarder):
+    def __init__(self, forwarder, water_system_name, dam_name, user_id, user_pw, opt_data=None):
         self.forwarder = forwarder
         # 인자 및 데이터
-        self.args = args
-        if self.args.opt_data is None:
+        self.water_system_name = water_system_name
+        self.dam_name = dam_name
+        self.user_id = user_id
+        self.user_pw = user_pw
+        self.opt_data = opt_data
+
+        if self.opt_data is None:
             return
-        self.opt_data = self.set_opt_data(self.args.opt_data)
-        logging.info(f"======{self.args.opt_data=}")
+        self.opt_data = self.set_opt_data(self.opt_data)
+        logging.info(f"======{self.opt_data=}")
         self.start_time = self.get_start_time(self.opt_data)
         self.time_interval = self.get_time_interval(self.opt_data, self.start_time_idx)
         self.time_interval_list = self.get_time_interval_list(self.time_interval)
@@ -101,12 +104,12 @@ class CosfimHandler:
         self.dam_box = None
 
     def set_opt_data(self, opt_data):
-        if self.args.opt_data is not None and os.path.exists(self.args.opt_data):
+        if self.opt_data is not None and os.path.exists(self.opt_data):
             with open(opt_data, "r") as f:
                 opt_data = f.read()
             return opt_data
         else:
-            return self.args.opt_data
+            return self.opt_data
 
     def get_start_time(self, opt_data):
         # OPT data 파싱
@@ -152,8 +155,8 @@ class CosfimHandler:
             time.sleep(self.WAIT_TIME_LONG_LONG)
 
             # ID/PW 입력
-            self.login_win.child_window(auto_id="textBox_ID", control_type="Edit").type_keys(self.args.id)
-            self.login_win.child_window(auto_id="textBox_PWD", control_type="Edit").type_keys(self.args.pw)
+            self.login_win.child_window(auto_id="textBox_ID", control_type="Edit").type_keys(self.user_id)
+            self.login_win.child_window(auto_id="textBox_PWD", control_type="Edit").type_keys(self.user_pw)
             self.login_win.child_window(auto_id="button_Accept", control_type="Button").click_input()
             logging.info("런치 - 로그인 -로그인 성공")
             time.sleep(self.WAIT_TIME_LONG_LONG)
@@ -277,17 +280,17 @@ class CosfimHandler:
         self._focus_main_win()
         self.water_system_box.click_input()
         time.sleep(self.WAIT_TIME)
-        self.water_system_box.child_window(title=self.args.water_system_name, control_type="ListItem").click_input()
+        self.water_system_box.child_window(title=self.water_system_name, control_type="ListItem").click_input()
         time.sleep(self.WAIT_TIME_LONG)
-        logging.info(f"수계 선택 {self.args.water_system_name=}")
+        logging.info(f"수계 선택 {self.water_system_name=}")
     
     def _select_dam(self):
         self._focus_main_win()
         self.dam_box.click_input()
         time.sleep(self.WAIT_TIME)
-        self.dam_box.child_window(title=self.args.dam_name, control_type="ListItem").click_input()
+        self.dam_box.child_window(title=self.dam_name, control_type="ListItem").click_input()
         time.sleep(self.WAIT_TIME_LONG)
-        logging.info(f"댐 선택 {self.args.dam_name=}")
+        logging.info(f"댐 선택 {self.dam_name=}")
     
     # 분석 단위 선택 
     def _select_time_interval(self):
@@ -396,7 +399,7 @@ class CosfimHandler:
 
     # 옵션 파일 처리
     def _check_opt_file(self): 
-        opt_name = self.opt_name_map[self.args.water_system_name][self.args.dam_name]
+        opt_name = self.opt_name_map[self.water_system_name][self.dam_name]
         opt_file_path = os.path.join(self.FILE_DIR, f"{opt_name}.OPT")
         logging.info(f"옵션 파일 경로 {opt_file_path=}")
         # 파일 없으면 생성 
@@ -519,10 +522,11 @@ class CosfimHandler:
 
 
 if __name__ == "__main__":
+    forwarder = Forwarder(api_end_point, water_system_name, dam_name, dam_code, template_id)
+    hdlr = CosfimHandler(forwarder, water_system_name, dam_name, user_id, user_pw, opt_data)
     try:
-        forwarder = Forwarder(args.api_end_point)
-        hdlr = CosfimHandler(args, forwarder)
-        if hdlr.args.opt_data is None or hdlr.args.opt_data == "":
+        # forwarder.forward(data_path="table_data.csv")
+        if hdlr.opt_data is None or hdlr.opt_data == "":
             raise ValueError("옵션 데이터가 제공되지 않았습니다")
 
         hdlr.launch_app()
