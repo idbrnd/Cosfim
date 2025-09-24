@@ -12,51 +12,52 @@ import requests
 from pywinauto.timings import TimeoutError
 from pywinauto.findwindows import ElementNotFoundError
 from contextlib import suppress
+from dto import CosfimData
 
 
-water_system_name = "거제권"
-dam_name = "구천댐"
-dam_code = "2011602"
-template_id = "cbc038d8-87f6-4e81-a794-4b9945bc6a1a"
-opt_data = """O 2025 070624 071424 N  
-N
-1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
-1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
-2025 07 06 00 00
-2025 07 11 00 00
-1
-120 60
-0.000 0.000 1.000 1.000
-1 0 0 3 2025 7 11 24 0
-1 1 0 0
-1
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.000 
-0.0 
-"""
-api_end_point = "http://223.130.139.28/api/v1/widget/upload/cosfim"
-user_id = "20052970"
-user_pw = "20052970"
+# water_system_name = "거제권"
+# dam_name = "구천댐"
+# dam_code = "2011602"
+# template_id = "cbc038d8-87f6-4e81-a794-4b9945bc6a1a"
+# opt_data = """O 2025 070624 071424 N  
+# N
+# 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+# 1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00
+# 2025 07 06 00 00
+# 2025 07 11 00 00
+# 1
+# 120 60
+# 0.000 0.000 1.000 1.000
+# 1 0 0 3 2025 7 11 24 0
+# 1 1 0 0
+# 1
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.000 
+# 0.0 
+# """
+# api_end_point = "http://223.130.139.28/api/v1/widget/upload/cosfim"
+# user_id = "20052970"
+# user_pw = "20052970"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -581,10 +582,9 @@ class CosfimHandler:
             raise
 
 
-
-if __name__ == "__main__":
-    forwarder = Forwarder(api_end_point, water_system_name, dam_name, dam_code, template_id)
-    hdlr = CosfimHandler(forwarder, water_system_name, dam_name, user_id, user_pw, opt_data)
+def get_data(cosfim_data: CosfimData):
+    forwarder = Forwarder(cosfim_data.api_end_point, cosfim_data.water_system_name, cosfim_data.dam_name, cosfim_data.dam_code, cosfim_data.template_id)
+    hdlr = CosfimHandler(forwarder, cosfim_data.water_system_name, cosfim_data.dam_name, cosfim_data.user_id, cosfim_data.user_pw, cosfim_data.opt_data)
     try:
         # forwarder.forward(data_path="table_data.csv")
         if hdlr.opt_data is None or hdlr.opt_data == "":
@@ -621,3 +621,7 @@ if __name__ == "__main__":
         # logging.info(f"Exception: {e}", exc_info=True)
         forwarder.forward(succcess=False, err_msg=str(e))
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    get_data(CosfimData())
