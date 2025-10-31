@@ -9,7 +9,7 @@
             "name": "낙동강 합천댐",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",   
+            "program": "multi.py",   
             "console": "integratedTerminal",
             "args": 
                 [
@@ -24,7 +24,7 @@
             "name": "거제권 구천댐",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "multi.py",
             "console": "integratedTerminal",
             "args": 
                 [
@@ -39,7 +39,7 @@
             "name": "거제권 구천댐 opt",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "multi.py",
             "console": "integratedTerminal",
             "args": 
                 [
@@ -54,7 +54,7 @@
             "name": "태화강 대암댐",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "multi.py",
             "console": "integratedTerminal",
             "args": 
                 [
@@ -68,7 +68,7 @@
             "name": " Invalid OPT 태화강 대암댐",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "multi.py",
             "console": "integratedTerminal",
             "args": 
                 [
@@ -78,6 +78,15 @@
                     "--api_end_point", "http://loaclhost:8080",
 
                 ]
+        },
+        {
+            "name": "포워딩 테슽",
+            "type": "debugpy",
+            "python": "/Users/lsh/.pyenv/versions/3.8.10/envs/sambo_ai_server/bin/python",
+            "request": "launch",
+            "program": "app.py",
+            "console": "integratedTerminal",
+
         }
     ]
 }

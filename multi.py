@@ -175,64 +175,90 @@ class Forwarder:
                 "sessionId" : self.session_id
             }
             
-            if success:
-                message = "success"
-                # 파일명만 추출 (경로 제거)
-                filename = os.path.basename(data_path)
+            max_retries = 3
+            last_exception = None
+            
+            for attempt in range(1, max_retries + 1):
+                try:
+                    if success:
+                        message = "success"
+                        filename = os.path.basename(data_path)
+                        
+                        with open(data_path, "rb") as csv_file:
+                            files = {"file": (filename, csv_file, "text/csv")}
+                            response = requests.post(
+                                self.end_point, 
+                                files=files, 
+                                data=info_data,
+                                params=query_params
+                            )
+                    else:
+                        info_data["error"] = err_msg if err_msg else "unknown error"
+                        filename = None
+                        response = requests.post(
+                                self.end_point, 
+                                files=None, 
+                                data=info_data,
+                                params=query_params
+                            )
+
+                    # === 요청 정보 출력 ===
+                    logging.info("=" * 80)
+                    logging.info("[요청 정보]")
+                    logging.info(f"URL: {response.request.url}")
+                    logging.info(f"Method: {response.request.method}")
+                    logging.info(f"Headers: {dict(response.request.headers)}")
+                    if success:
+                        logging.info(f"Files: {filename}")
+                    logging.info(f"Data: {info_data}")
+                    logging.info(f"Query Params: {query_params}")
+                    
+                    # === 응답 정보 출력 ===
+                    logging.info("-" * 80)
+                    logging.info("[응답 정보]")
+                    logging.info(f"Status Code: {response.status_code}")
+                    logging.info(f"Reason: {response.reason}")
+                    logging.info(f"Headers: {dict(response.headers)}")
+                    logging.info(f"Body: {response.text}")
+                    
+                    # JSON 응답인 경우 예쁘게 출력
+                    try:
+                        json_response = response.json()
+                        logging.info(f"Body (JSON):\n{json.dumps(json_response, indent=2, ensure_ascii=False)}")
+                    except:
+                        pass
+                    
+                    logging.info("=" * 80)
                 
-                with open(data_path, "rb") as csv_file:
-                    files = {"file": (filename, csv_file, "text/csv")}
-                    response = requests.post(
-                        self.end_point, 
-                        files=files, 
-                        data=info_data,
-                        params=query_params
-                    )
-            else:
-                info_data["error"] = err_msg if err_msg else "unknown error"
-                response = requests.post(
-                        self.end_point, 
-                        files=None, 
-                        data=info_data,
-                        params=query_params
-                    )
+                    if response.status_code == 200:
+                        logging.info("✅ 데이터를 서버에서 성공적으로 수신함")
+                        logging.info(f"포워딩 함수 실행 완료: 댐={self.dam_name}, 파일={filename if success else 'N/A'}")
+                        return  # 성공 시 함수 종료
+                    else:
+                        error_msg = f"데이터를 보냈으나 서버에서 실패 응답을 보냄: {response.status_code}, {response.text}"
+                        last_exception = Exception(error_msg)
+                        
+                        if attempt < max_retries:
+                            logging.warning(f"⚠️ 포워딩 실패 ({attempt}/{max_retries}), {max_retries - attempt}번 더 재시도.")
 
-            # === 요청 정보 출력 ===
-            logging.info("=" * 80)
-            logging.info("[요청 정보]")
-            logging.info(f"URL: {response.request.url}")
-            logging.info(f"Method: {response.request.method}")
-            logging.info(f"Headers: {dict(response.request.headers)}")
-            if success:
-                logging.info(f"Files: {filename}")
-            logging.info(f"Data: {info_data}")
-            logging.info(f"Query Params: {query_params}")
+                            time.sleep(1)  # 재시도 전 1초 대기
+                        else:
+                            logging.error(error_msg)
+                            raise last_exception
+                            
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        logging.warning(f"⚠️ 포워딩 실패 ({attempt}/{max_retries}), {max_retries - attempt}번 더 재시도.")
+                        time.sleep(1)  # 재시도 전 1초 대기
+                    else:
+                        logging.error(f"포워딩 함수 실행중에 오류 발생 (최대 재시도 횟수 초과): {e}")
+                        raise
             
-            # === 응답 정보 출력 ===
-            logging.info("-" * 80)
-            logging.info("[응답 정보]")
-            logging.info(f"Status Code: {response.status_code}")
-            logging.info(f"Reason: {response.reason}")
-            logging.info(f"Headers: {dict(response.headers)}")
-            logging.info(f"Body: {response.text}")
-            
-            # JSON 응답인 경우 예쁘게 출력
-            try:
-                json_response = response.json()
-                logging.info(f"Body (JSON):\n{json.dumps(json_response, indent=2, ensure_ascii=False)}")
-            except:
-                pass
-            
-            logging.info("=" * 80)
-        
-            if response.status_code == 200:
-                logging.info("✅ 데이터를 서버에서 성공적으로 수신함")
-            else:
-                error_msg = f"데이터를 서버에서 수신하는데 실패: {response.status_code}, {response.text}"
-                logging.error(error_msg)
-                raise Exception(f"데이터를 서버에서 수신하는데 실패: {response.status_code} - {response.text}")
-
-            logging.info(f"포워딩 함수 실행 완료: 댐={self.dam_name}, 파일={filename if success else 'N/A'}")
+            # 모든 재시도 실패 시
+            if last_exception:
+                raise last_exception
+                
         except Exception as e:
             logging.error(f"포워딩 함수 실행중에 오류 발생: {e}")
             raise
