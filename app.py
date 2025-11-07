@@ -14,6 +14,9 @@ from datetime import datetime
 from pathlib import Path
 from contextlib import asynccontextmanager
 from multi import MultiCosfimManager, Forwarder, CosfimHandler
+import requests
+
+
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s')
@@ -28,6 +31,25 @@ USER_PW = "20052970"
 
 # 전역 관리자 인스턴스
 manager = None
+
+def create_call_back_message(callback_type:str,process: str,session_id : str, message : str):
+    callback_message = {
+        "type" : callback_type,
+        "process" : process,
+        "summary" : message,
+        "reference" : None,
+        "data" : None
+    }
+    
+    print("this is callback message :" , callback_message)
+    headers = {'Content-Type' : 'application/json; charset=utf-8'}
+    response = requests.post(
+                            f'http://223.130.139.28/api/v1/chat/callback/cosfim?sessionId={session_id}', 
+                            json=callback_message,
+                            headers = headers
+                        )
+
+    print(response)
 
 class CosfimInputDto(BaseModel):
     waterSystemName: str
@@ -217,7 +239,7 @@ async def submit_cosfim_task(
 ):
     """COSFIM 작업을 큐에 제출"""
     
-    print(sessionId, widgetName)
+    create_call_back_message("setupCosfimParameter", "processing", sessionId,  "문의 주신 내용을 기반으로 COSFIM 모델의 설정값을 생성하고 있습니다.")
 
     try:
         global manager
@@ -251,6 +273,8 @@ async def submit_cosfim_task(
         TaskTracker.create_task(task_id, waterSystemName, damName)
         
         logger.info(f"Task submitted: {task_id} for {damName} with txt file: {optData.filename}")
+
+        create_call_back_message("setupCosfimParameter", "completed", sessionId, "문의 주신 내용을 기반으로 COSFIM 모델의 설정값을 생성하고 있습니다.")
         
         return {
             "task_id": task_id,

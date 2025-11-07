@@ -24,6 +24,26 @@ import subprocess
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(name)s] %(message)s')
 
 
+def create_call_back_message(callback_type:str,process: str,session_id : str, message : str):
+    callback_message = {
+        "type" : callback_type,
+        "process" : process,
+        "summary" : message,
+        "reference" : None,
+        "data" : None
+    }
+    
+    print("this is callback message :" , callback_message)
+    headers = {'Content-Type' : 'application/json; charset=utf-8'}
+    response = requests.post(
+                            f'http://223.130.139.28/api/v1/chat/callback/cosfim?sessionId={session_id}', 
+                            json=callback_message,
+                            headers = headers
+                        )
+
+    print(response)
+
+
 class TaskQueue:
     """작업 큐 관리 클래스"""
     def __init__(self):
@@ -117,7 +137,8 @@ class TaskQueue:
                 user_pw=task_data['user_pw'],
                 opt_data=task_data['opt_data'],
                 work_dir=work_dir,
-                task_id=task_id[:8]
+                task_id=task_id[:8],
+                session_id=task_data['session_id'],
             )
             
             # 작업 실행
@@ -161,6 +182,8 @@ class Forwarder:
         self.widget_name = widget_name
 
     def forward(self, success=True, data_path="table_data.csv", err_msg=""):
+        create_call_back_message("createCosfimChart", "completed", self.session_id,  "분석된 결과를 더 쉽게 확인하실 수 있도록 차트를 생성하고 있습니다. 잠시만 기다려 주세요.")
+
         files = None
         try: 
             info_data = {
@@ -233,6 +256,7 @@ class Forwarder:
                     if response.status_code == 200:
                         logging.info("✅ 데이터를 서버에서 성공적으로 수신함")
                         logging.info(f"포워딩 함수 실행 완료: 댐={self.dam_name}, 파일={filename if success else 'N/A'}")
+
                         return  # 성공 시 함수 종료
                     else:
                         error_msg = f"데이터를 보냈으나 서버에서 실패 응답을 보냄: {response.status_code}, {response.text}"
@@ -265,13 +289,13 @@ class Forwarder:
 
 
 class CosfimHandler:
-    APP_PATH = r"C:\Program Files (x86)\KWater\댐군 홍수조절 연계 운영 시스템\COSFIM_GUI"
+    APP_PATH = r"C:\Program Files (x86)\KWater\댐군 홍수조절 연계 운영 시스템\COSFIM_GUI.exe"
     BASE_FILE_DIR = r"C:\COSFIM\WRKSPACE"
     WAIT_TIME = 0.1
     WAIT_TIME_LONG = 0.5
     WAIT_TIME_LONG_LONG = 1
     
-    def __init__(self, forwarder, water_system_name, dam_name, user_id, user_pw, opt_data=None, work_dir=None, task_id=None):
+    def __init__(self, forwarder, water_system_name, dam_name, user_id, user_pw,session_id, opt_data=None, work_dir=None, task_id=None):
         self.forwarder = forwarder
         self.logger = logging.getLogger(f"CosfimHandler-{task_id or 'main'}")
         
@@ -291,6 +315,7 @@ class CosfimHandler:
         self.user_id = user_id
         self.user_pw = user_pw
         self.opt_data = opt_data
+        self.session_id = session_id
 
         if self.opt_data is None:
             return
@@ -338,16 +363,28 @@ class CosfimHandler:
     def get_start_time(self, opt_data):
         cnt = 0
         opt_data = opt_data.split("\n")
+        year = month = day = hr = min = None
+
         for idx, line in enumerate(opt_data):
-            if line[:2] in("19","20"):
+            line_stripped = line.strip()
+            if line_stripped and line_stripped[:2] in("19","20"):
                 cnt += 1
                 self.logger.info(f"{cnt=}, {line=}")
                 if cnt == 2:
                     ele = line.split(" ")
-                    year, month, day, hr, min = ele[-6:]
-                    self.logger.info(f"{year=} {month=} {day=} {hr=} {min=}")
-                    self.start_time_idx = idx
-                    break
+                    if len(ele) >= 5:
+                        year, month, day, hr, min = ele[:5]
+                        self.logger.info(f"{year=} {month=} {day=} {hr=} {min=}")
+                        self.start_time_idx = idx
+                        # 두 번째 날짜도 찾아야 하므로 break 하지 않음
+                # elif cnt == 2:
+                #     # 두 번째 날짜에서 start_time_idx 저장 후 종료
+                        self.start_time_idx = idx
+                        break
+
+        if year is None:
+            raise ValueError("OPT 파일에서 시작 시간을 찾을 수 없습니다. 파일 형식을 확인하세요.")
+
         return year, month, day, hr, min
 
     def get_time_interval(self, opt_data, start_time_idx):
@@ -394,33 +431,65 @@ class CosfimHandler:
     def safe_close_existing_instances(self):
         """기존 COSFIM 인스턴스를 안전하게 종료"""
         self.logger.info("=== 기존 COSFIM 프로세스 정리 시작 ===")
-        
-        # 1단계: UI를 통한 정리
+
+        # 1단계: UI를 통한 정상 종료 시도 (id.xml 권한 문제 우회)
         try:
             existing_app = Application(backend='uia')
             existing_app.connect(title_re="COSFIM.*Web Service")
-            
-            # 프로세스 ID 수집
+
             pids = []
             for window in existing_app.windows():
                 try:
                     pid = window.process_id()
                     pids.append(pid)
-                    window.close()
+
+                    # UI 메뉴를 통한 정상 종료 시도 (파일 저장 프롬프트 회피)
+                    try:
+                        # 먼저 Alt+F4로 종료 시도
+                        window.set_focus()
+                        time.sleep(0.3)
+                        window.type_keys('%{F4}')  # Alt+F4
+                        self.logger.info(f"UI 종료 시도 (Alt+F4): PID {pid}")
+                        time.sleep(1)
+
+                        # 저장 확인 창이 뜨면 "아니요" 선택
+                        try:
+                            confirm_win = window.child_window(title_re="선택|저장|알림", control_type="Window")
+                            if confirm_win.exists(timeout=2):
+                                no_btn = confirm_win.child_window(title_re="아니요|No", control_type="Button")
+                                if no_btn.exists(timeout=1):
+                                    no_btn.click_input()
+                                    self.logger.info(f"저장 확인 창 '아니요' 클릭: PID {pid}")
+                                    time.sleep(0.5)
+                        except:
+                            pass
+
+                    except Exception as e:
+                        self.logger.warning(f"UI 종료 시도 실패: {e}")
+                        # 실패하면 기존 방식 사용
+                        window.close()
+
                     self.logger.info(f"기존 창 닫기: PID {pid}")
                     time.sleep(0.5)
+
                 except Exception as e:
                     self.logger.warning(f"기존 창 닫기 실패: {e}")
-            
-            # 프로세스 강제 종료
-            for pid in set(pids):  # 중복 제거
+
+            time.sleep(2)
+
+            # 1.5단계: 여전히 살아있는 프로세스는 강제 종료
+            for pid in set(pids):
                 try:
-                    subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                                 capture_output=True, timeout=5)
-                    self.logger.info(f"기존 프로세스 강제 종료: PID {pid}")
+                    # 프로세스가 아직 살아있는지 확인
+                    result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}'],
+                                          capture_output=True, text=True, timeout=5)
+                    if str(pid) in result.stdout:
+                        subprocess.run(['taskkill', '/F', '/PID', str(pid)],
+                                     capture_output=True, timeout=5)
+                        self.logger.info(f"기존 프로세스 강제 종료: PID {pid}")
                 except Exception as e:
                     self.logger.warning(f"프로세스 종료 실패 (PID {pid}): {e}")
-            
+
             time.sleep(2)
         except Exception as e:
             self.logger.info(f"UI 기반 정리 스킵 (기존 인스턴스 없음): {e}")
@@ -441,19 +510,22 @@ class CosfimHandler:
             self.logger.warning(f"프로세스 이름 기반 정리 오류: {e}")
         
         # 3단계: 최종 확인
-        for attempt in range(5):  # 최대 5초 대기
+        for attempt in range(10):  # 최대 10초 대기
             try:
-                result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq COSFIM_GUI.exe'], 
+                result = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq COSFIM_GUI.exe'],
                                       capture_output=True, text=True, timeout=5)
                 if 'COSFIM_GUI.exe' not in result.stdout:
                     self.logger.info(f"✅ 기존 프로세스 정리 완료 확인 ({attempt+1}초)")
-                    time.sleep(1)  # 추가 안전 마진
+                    time.sleep(3)  # 추가 안전 마진 증가 (1초 -> 3초)
                     return
             except:
                 pass
             time.sleep(1)
-        
+
         self.logger.warning("❌ 프로세스 정리 확인 시간 초과 - 계속 진행")
+
+
+        
 
 
 
@@ -462,17 +534,69 @@ class CosfimHandler:
         try:
             # 기존 인스턴스 정리
             self.safe_close_existing_instances()
-            
-            # 새 인스턴스 시작
-            self.app = Application(backend="uia").start(self.APP_PATH)          
-            self.login_win = self.app.window(title_re="로그인")
-            self.login_win.wait("visible", timeout=30)
-            self.logger.info("새 COSFIM 인스턴스 실행 성공")
-            self.is_new_instance = True
-            
+
+            # 방법 1: subprocess로 직접 실행 (pywinauto.start() 대신)
+            self.logger.info("코스핌 실행 시작 (subprocess 방식)...")
+
+            # 프로세스 시작
+            import subprocess
+            subprocess.Popen([self.APP_PATH], shell=True)
+            self.logger.info("코스핌 프로세스 시작됨 (subprocess)")
+
+            # 프로세스가 완전히 시작될 때까지 대기
+            time.sleep(3)
+
+            # 실행된 프로세스에 연결
+            self.logger.info("실행된 코스핌 프로세스에 연결 시도...")
+            max_connect_attempts = 5
+            for connect_attempt in range(1, max_connect_attempts + 1):
+                try:
+                    self.app = Application(backend="uia").connect(path=self.APP_PATH, timeout=5)
+                    self.logger.info(f"코스핌 프로세스 연결 성공 (시도 {connect_attempt}/{max_connect_attempts})")
+                    break
+                except Exception as e:
+                    if connect_attempt < max_connect_attempts:
+                        self.logger.warning(f"연결 실패 (시도 {connect_attempt}/{max_connect_attempts}): {e}")
+                        time.sleep(2)
+                    else:
+                        self.logger.error(f"프로세스 연결 실패: {e}")
+                        raise
+
+            # 로그인 창이 나타날 때까지 대기
+            max_attempts = 3
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    self.logger.info(f"로그인 창 대기 중... (시도 {attempt}/{max_attempts})")
+
+                    # 모든 창 확인
+                    try:
+                        all_windows = self.app.windows()
+                        self.logger.info(f"현재 코스핌 창 개수: {len(all_windows)}")
+                        for idx, win in enumerate(all_windows):
+                            try:
+                                self.logger.info(f"  창 {idx+1}: {win.window_text()}")
+                            except:
+                                pass
+                    except:
+                        pass
+
+                    self.login_win = self.app.window(title_re="로그인")
+                    self.login_win.wait("visible", timeout=15)
+                    self.logger.info("새 COSFIM 인스턴스 실행 성공")
+                    self.is_new_instance = True
+                    break
+
+                except Exception as e:
+                    if attempt < max_attempts:
+                        self.logger.warning(f"로그인 창 찾기 실패 (시도 {attempt}/{max_attempts}): {e}")
+                        time.sleep(2)
+                    else:
+                        self.logger.error(f"로그인 창을 찾을 수 없음: {e}")
+                        raise
+
             self._login()
             self._update_check()
-            
+
         except Exception as e:
             self.logger.error(f"앱 실행 실패: {e}")
             raise
@@ -611,7 +735,7 @@ class CosfimHandler:
             self.logger.error(f"에러 창 확인 중 예상치 못한 에러: {e}")
 
     def select_options(self):
-        try: 
+        try:
             self._focus_main_win()
             self._select_water_system()
             self._select_dam()
@@ -619,13 +743,72 @@ class CosfimHandler:
             time.sleep(self.WAIT_TIME_LONG_LONG)
             self._check_error_window()
             self.logger.info("OPT 파일 불러오기 완료")
+            #
+            # # OPT에서 안 불러와지는 항목들 수동 설정
+            # self._select_time_interval()
+            # self._select_time_picker_start_date()
+            # if self.time_interval in ["10분", "30분", "60분"]:
+            #     self._select_time_picker_start_hr_min()
+
         except Exception as e:
             self.logger.error(f"옵션 선택 중 에러 발생: {e}")
             raise
 
+    # def _select_time_interval(self):
+    #     time_interval = self.time_interval
+    #     self._focus_main_win()
+    #     self.time_interval_box.click_input()
+    #     time.sleep(self.WAIT_TIME)
+    #     self.time_interval_box.child_window(title=time_interval, control_type="ListItem").click_input()
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     self.logger.info(f"시간 간격 선택 {time_interval=}")
+    #
+    # def _select_time_picker_start_date(self):
+    #     year, month, day = self.start_time[:3]
+    #     self._focus_main_win()
+    #     time_picker_start_date = self.time_picker_start.child_window(auto_id="dateTimePicker", control_type="Pane")
+    #
+    #     # 날짜-연
+    #     pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+2, time_picker_start_date.rectangle().top+2))
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     pywinauto.keyboard.send_keys(year)
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #
+    #     # 날짜-월
+    #     pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+37, time_picker_start_date.rectangle().top+2))
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     pywinauto.keyboard.send_keys(month)
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #
+    #     # 날짜-일
+    #     pywinauto.mouse.click(coords=(time_picker_start_date.rectangle().left+55, time_picker_start_date.rectangle().top+2))
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     pywinauto.keyboard.send_keys(day)
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     self.logger.info(f"시작 날짜 선택:{year}-{month}-{day}")
+    #
+    # def _select_time_picker_start_hr_min(self):
+    #     hr, min = self.start_time[-2:]
+    #     self._focus_main_win()
+    #     time_picker_start_hr = self.time_picker_start.child_window(auto_id="comboBox_Hour", control_type="ComboBox")
+    #     time_picker_start_min = self.time_picker_start.child_window(auto_id="comboBox_Minute", control_type="ComboBox")
+    #
+    #     # 시간
+    #     time_picker_start_hr.click_input()
+    #     time.sleep(self.WAIT_TIME_LONG_LONG)
+    #     time_picker_start_hr.child_window(title=hr, control_type="ListItem").click_input()
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #     # 분
+    #     time_picker_start_min.click_input()
+    #     time.sleep(self.WAIT_TIME_LONG_LONG)
+    #     time_picker_start_min.child_window(title=min, control_type="ListItem").click_input()
+    #     time.sleep(self.WAIT_TIME_LONG)
+    #
+    #     self.logger.info(f"시작 시간 선택:{hr}:{min}")
+
     def _check_opt_file(self): 
         opt_name = self.opt_name_map[self.water_system_name][self.dam_name]
-        opt_file_path = os.path.join(self.FILE_DIR, f"{opt_name}.OPT")
+        opt_file_path = os.path.join(self.BASE_FILE_DIR, f"{opt_name}.OPT")
         self.logger.info(f"옵션 파일 경로 {opt_file_path=}")
         
         if not os.path.exists(opt_file_path):
@@ -708,6 +891,9 @@ class CosfimHandler:
             csv_path = self.work_dir / self.csv_filename
             filtered_df.to_csv(csv_path, index=False, encoding='utf-8-sig')
             self.logger.info(f"데이터를 {csv_path} 파일로 저장했습니다.")
+            create_call_back_message("dataAnalysis", "completed", self.session_id,  "설정값을 기반으로 데이터를 분석하고 있습니다. 잠시만 기다려 주세요.")
+            create_call_back_message("createCosfimChart", "processing", self.session_id,  "분석된 결과를 더 쉽게 확인하실 수 있도록 차트를 생성하고 있습니다. 잠시만 기다려 주세요.")
+
             return str(csv_path)
 
         except Exception as e:
@@ -740,33 +926,63 @@ class CosfimHandler:
 #            self.logger.error(f"정리 중 에러: {e}")
 
     def cleanup(self):
-        """리소스 정리 - 강제 종료 포함"""
+        """리소스 정리 - UI 기반 정상 종료 우선"""
         pids = []
-        
+
         try:
-            # 1단계: 앱 객체를 통한 정리
+            # 1단계: 앱 객체를 통한 UI 기반 정상 종료 시도
             if self.app:
                 self.logger.info("앱 객체를 통한 프로세스 정리 시작...")
                 for window in self.app.windows():
                     try:
                         pid = window.process_id()
                         pids.append(pid)
-                        window.close()
+
+                        # UI 메뉴를 통한 정상 종료 시도
+                        try:
+                            window.set_focus()
+                            time.sleep(0.3)
+                            window.type_keys('%{F4}')  # Alt+F4
+                            self.logger.info(f"UI 종료 시도 (Alt+F4): PID {pid}")
+                            time.sleep(1)
+
+                            # 저장 확인 창이 뜨면 "아니요" 선택
+                            try:
+                                confirm_win = window.child_window(title_re="선택|저장|알림", control_type="Window")
+                                if confirm_win.exists(timeout=2):
+                                    no_btn = confirm_win.child_window(title_re="아니요|No", control_type="Button")
+                                    if no_btn.exists(timeout=1):
+                                        no_btn.click_input()
+                                        self.logger.info(f"저장 확인 창 '아니요' 클릭: PID {pid}")
+                                        time.sleep(0.5)
+                            except:
+                                pass
+
+                        except Exception as e:
+                            self.logger.warning(f"UI 종료 시도 실패: {e}")
+                            window.close()
+
                         self.logger.info(f"창 닫기 완료: PID {pid}")
+
                     except Exception as e:
                         self.logger.warning(f"창 닫기 실패: {e}")
-                
-                # 수집된 PID 강제 종료
+
+                time.sleep(2)
+
+                # 수집된 PID 중 아직 살아있는 프로세스만 강제 종료
                 for pid in set(pids):
                     try:
-                        subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                                     capture_output=True, timeout=5)
-                        self.logger.info(f"프로세스 강제 종료 완료: PID {pid}")
+                        result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}'],
+                                              capture_output=True, text=True, timeout=5)
+                        if str(pid) in result.stdout:
+                            subprocess.run(['taskkill', '/F', '/PID', str(pid)],
+                                         capture_output=True, timeout=5)
+                            self.logger.info(f"프로세스 강제 종료 완료: PID {pid}")
                     except Exception as e:
                         self.logger.warning(f"프로세스 강제 종료 실패 (PID {pid}): {e}")
-                
+
                 time.sleep(1)
-                
+
         except Exception as e:
             self.logger.error(f"앱 객체 정리 중 에러: {e}")
         
@@ -807,8 +1023,14 @@ class CosfimHandler:
             if self.opt_data is None or self.opt_data == "":
                 raise ValueError("옵션 데이터가 제공되지 않았습니다")
 
+            create_call_back_message("launchApp", "processing", self.session_id,  "최적의 설정값을 생성 후 분석을 진행하기 위해 COSFIM을 실행하고 있습니다. 잠시만 기다려 주세요.")
+
             self.launch_app()
             self.logger.info("===런치 완료===")
+            create_call_back_message("launchApp", "completed", self.session_id,  "최적의 설정값을 생성 후 분석을 진행하기 위해 COSFIM을 실행하고 있습니다. 잠시만 기다려 주세요.")
+            create_call_back_message("dataAnalysis", "processing", self.session_id,  "설정값을 기반으로 데이터를 분석하고 있습니다. 잠시만 기다려 주세요.")
+
+
 
             self.get_elements()
             self.logger.info("===요소 처리 완료===")
@@ -821,6 +1043,7 @@ class CosfimHandler:
 
             csv_path = self.handle_data()
             self.logger.info("===데이터 처리 완료===")
+            
             
             return csv_path
 
