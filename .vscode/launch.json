@@ -1,0 +1,94 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "낙동강 합천댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "multi.py",   
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "낙동강", 
+                    "--dam_name", "합천댐",
+                    "--opt_data", "sample_opt\\낙동강-합천댐-0805-30.OPT",
+                    "--api_end_point", "http://loaclhost:8080",
+
+                ]
+        },
+        {
+            "name": "거제권 구천댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "multi.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "거제권", 
+                    "--dam_name", "구천댐",
+                    "--opt_data", "sample_opt\\거제권-구천댐-0203-0207-24.OPT",
+                    "--api_end_point", "http://loaclhost:8080",
+
+                ]
+        },
+        {
+            "name": "거제권 구천댐 opt",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "multi.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "거제권", 
+                    "--dam_name", "구천댐",
+                    "--opt_data", "Y 2025 020312 020712 N\nN\n1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00\n1.00 1.00 1.00 1.00 1.00 1.00 1.00 1.00\n2025 02 03 12 00\n2025 02 07 12 00\n1\n96 1440\n0.000 0.000 1.000 1.000\n1 0 0 3 2025 2 7 12 0\n1\n1\n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.000 \n0.0 \n",
+                    "--api_end_point", "http://loaclhost:8080",
+
+                ]
+        },
+        {
+            "name": "태화강 대암댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "multi.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "태화강", 
+                    "--dam_name", "대암댐",
+                    "--opt_data", "sample_opt\\태화강-대암댐-0707-0712-60.OPT",
+                    "--api_end_point", "http://loaclhost:8080",
+                ]
+        },
+        {
+            "name": " Invalid OPT 태화강 대암댐",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "multi.py",
+            "console": "integratedTerminal",
+            "args": 
+                [
+                    "--water_system_name", "태화강", 
+                    "--dam_name", "대암댐",
+                    "--opt_data", "sample_opt\\태화강-대암댐-invalid.OPT",
+                    "--api_end_point", "http://loaclhost:8080",
+
+                ]
+        },
+        {
+            "name": "포워딩 테슽",
+            "type": "debugpy",
+            "python": "/Users/lsh/.pyenv/versions/3.8.10/envs/sambo_ai_server/bin/python",
+            "request": "launch",
+            "program": "app.py",
+            "console": "integratedTerminal",
+
+        }
+    ]
+}
+
+// http://drive.google.com/drive/folders/1NN70LsQGQ21NKf4gD8r40tnADtU7pE3c?usp=sharing

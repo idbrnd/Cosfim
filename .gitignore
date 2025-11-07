@@ -1,0 +1,11 @@
+build/
+**/table_data.csv
+**/history.xml
+**/id.xml
+.DS_Store
+.idea/
+.vscode/
+.pytest_cache/
+.pytest_cache/*
+**/__pycache__/
+**/*.pyc
