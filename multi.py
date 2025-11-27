@@ -181,17 +181,18 @@ class Forwarder:
         self.session_id = session_id
         self.widget_name = widget_name
 
-    def forward(self, success=True, data_path="table_data.csv", err_msg=""):
+    def forward(self, success=True, data_path="table_data.csv", err_msg="", current_time=None):
         create_call_back_message("createCosfimChart", "completed", self.session_id,  "분석된 결과를 더 쉽게 확인하실 수 있도록 차트를 생성하고 있습니다. 잠시만 기다려 주세요.")
 
         files = None
         try: 
             info_data = {
                 "damName": self.dam_name,
-                "waterSystemName": self.water_system_name, 
+                "waterSystemName": self.water_system_name,
                 "damCode": self.dam_code,
                 "widgetName" : self.widget_name,
-                "error": ""
+                "error": "",
+                "currentTime" : current_time.strftime("%Y-%m-%d %H:%M:%S")
             }
             query_params = {
                 "templateId": self.template_id,
@@ -225,33 +226,10 @@ class Forwarder:
                                 params=query_params
                             )
 
-                    # === 요청 정보 출력 ===
-                    logging.info("=" * 80)
-                    logging.info("[요청 정보]")
-                    logging.info(f"URL: {response.request.url}")
-                    logging.info(f"Method: {response.request.method}")
-                    logging.info(f"Headers: {dict(response.request.headers)}")
-                    if success:
-                        logging.info(f"Files: {filename}")
-                    logging.info(f"Data: {info_data}")
-                    logging.info(f"Query Params: {query_params}")
-                    
-                    # === 응답 정보 출력 ===
-                    logging.info("-" * 80)
-                    logging.info("[응답 정보]")
-                    logging.info(f"Status Code: {response.status_code}")
-                    logging.info(f"Reason: {response.reason}")
-                    logging.info(f"Headers: {dict(response.headers)}")
-                    logging.info(f"Body: {response.text}")
-                    
-                    # JSON 응답인 경우 예쁘게 출력
-                    try:
-                        json_response = response.json()
-                        logging.info(f"Body (JSON):\n{json.dumps(json_response, indent=2, ensure_ascii=False)}")
-                    except:
-                        pass
-                    
-                    logging.info("=" * 80)
+                    # 요청/응답 정보 출력
+                    logging.info(f"[요청] {response.request.method} {response.request.url} | Data: {info_data}")
+                    response_body = getattr(response, 'text', '')[:200] if hasattr(response, 'text') else ''
+                    logging.info(f"[응답] {response.status_code} | Body: {response_body}")
                 
                     if response.status_code == 200:
                         logging.info("✅ 데이터를 서버에서 성공적으로 수신함")
@@ -325,7 +303,11 @@ class CosfimHandler:
         self.time_interval = self.get_time_interval(self.opt_data, self.start_time_idx)
         self.time_interval_list = self.get_time_interval_list(self.time_interval)
         self.is_new_instance = None
-        
+
+        # start_time 튜플을 datetime 객체로 변환
+        year, month, day, hr, min = self.start_time
+        self.current_time = datetime(int(year), int(month), int(day), int(hr), int(min)) 
+
         self.opt_name_map = {
             "낙동강": {
                 "하류":"NAMF", "안동댐":"ADMF", "임하댐":"IHMF", "합천댐":"HCMF", "남강댐":"NKMF",  "밀양댐":"MYMF", 
@@ -904,7 +886,7 @@ class CosfimHandler:
         try:
             clipboard_data = self._get_data()
             csv_path = self._save_data(clipboard_data)
-            self.forwarder.forward(success=True, data_path=csv_path)
+            self.forwarder.forward(success=True, data_path=csv_path, current_time=self.current_time)
             return csv_path
         except TimeoutError as e:
             raise
